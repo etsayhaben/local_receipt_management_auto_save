@@ -61,7 +61,7 @@ urlpatterns = [
         name="receipt-kind-create",
     ),
     path('check-receipt-exists/', CheckReceiptExistsView.as_view(), name='check-receipt-exists'),
-    path('drafts/', DraftsView.as_view(), name='drafts'),
+    path('drafts', DraftsView.as_view(), name='drafts'),
 
     path(
         "receipt-document/<int:id>/",

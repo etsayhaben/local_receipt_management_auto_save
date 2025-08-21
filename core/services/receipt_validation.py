@@ -1,8 +1,6 @@
 # core/services/receipt_validation.py
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
-
 from core.models.look_up_tables import (
     ReceiptCatagory,
     ReceiptKind,
@@ -10,18 +8,15 @@ from core.models.look_up_tables import (
     ReceiptName,
 )
 from core.models.contact import Contact
-from core.models.item import Item
-# from core.serializers.ReceiptSerializer import CRVItemSerializer, ReceiptLineSerializer  # Removed to avoid circular import
-# Import your item serializers
 
 
 class ReceiptValidationService:
     @staticmethod
     def validate_receipt_data(data: dict, recorded_by: Contact = None) -> dict:
         """
-        Validates receipt data structure.
-        Used by both DraftSerializer and ReceiptSerializer.
-        Does NOT create objects or enforce final business rules.
+        Validates receipt data structure for both Draft and Final Receipt.
+        Returns the same structure as input, with all IDs preserved.
+        Does NOT create objects or enforce final business rules (e.g., duplicates).
         """
         validated = {}
 
@@ -61,6 +56,7 @@ class ReceiptValidationService:
 
         if not issued_by_data:
             raise ValidationError({"issued_by_details": ["This field is required."]})
+
         if not issued_to_data:
             raise ValidationError({"issued_to_details": ["This field is required."]})
 
@@ -75,27 +71,28 @@ class ReceiptValidationService:
         type_id = data.get("receipt_type_id")
         name_id = data.get("receipt_name_id")
 
+        # ✅ Validate and return IDs
         try:
-            receipt_category = ReceiptCatagory.objects.get(id=category_id)
-            validated["receipt_category"] = receipt_category
+            ReceiptCatagory.objects.get(id=category_id)
+            validated["receipt_category_id"] = category_id
         except ReceiptCatagory.DoesNotExist:
             raise ValidationError({"receipt_category_id": "Invalid category ID."})
 
         try:
-            receipt_kind = ReceiptKind.objects.get(id=kind_id)
-            validated["receipt_kind"] = receipt_kind
+            ReceiptKind.objects.get(id=kind_id)
+            validated["receipt_kind_id"] = kind_id
         except ReceiptKind.DoesNotExist:
             raise ValidationError({"receipt_kind_id": "Invalid kind ID."})
 
         try:
-            receipt_type = ReceiptType.objects.get(id=type_id)
-            validated["receipt_type"] = receipt_type
+            ReceiptType.objects.get(id=type_id)
+            validated["receipt_type_id"] = type_id
         except ReceiptType.DoesNotExist:
             raise ValidationError({"receipt_type_id": "Invalid type ID."})
 
         try:
-            receipt_name = ReceiptName.objects.get(id=name_id)
-            validated["receipt_name"] = receipt_name
+            ReceiptName.objects.get(id=name_id)
+            validated["receipt_name_id"] = name_id
         except ReceiptName.DoesNotExist:
             raise ValidationError({"receipt_name_id": "Invalid name ID."})
 
@@ -106,28 +103,26 @@ class ReceiptValidationService:
         if not items_data:
             raise ValidationError({"items": ["At least one item is required."]})
 
-        # Basic item validation without serializers to avoid circular imports
         validated_items = []
         for idx, item_data in enumerate(items_data):
-            # Basic validation for required fields
             if not item_data.get("item_description"):
                 raise ValidationError({"items": [f"Item {idx + 1}: item_description is required"]})
-            
-            # Validate numeric fields
+
             try:
                 quantity = float(item_data.get("quantity", 1))
                 if quantity <= 0:
                     raise ValidationError({"items": [f"Item {idx + 1}: quantity must be greater than 0"]})
             except (ValueError, TypeError):
                 raise ValidationError({"items": [f"Item {idx + 1}: invalid quantity value"]})
-            
+
             try:
                 unit_cost = float(item_data.get("unit_cost", 0))
                 if unit_cost < 0:
                     raise ValidationError({"items": [f"Item {idx + 1}: unit_cost cannot be negative"]})
             except (ValueError, TypeError):
                 raise ValidationError({"items": [f"Item {idx + 1}: invalid unit_cost value"]})
-            
+
+            # ✅ Pass through all fields
             validated_items.append(item_data)
 
         validated["items"] = validated_items
