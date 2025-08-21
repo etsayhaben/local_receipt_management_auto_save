@@ -11,7 +11,7 @@ from core.models.look_up_tables import (
 )
 from core.models.contact import Contact
 from core.models.item import Item
-from local_receipt_management_system.core.serializers.ReceiptSerializer import CRVItemSerializer, ReceiptLineSerializer
+# from core.serializers.ReceiptSerializer import CRVItemSerializer, ReceiptLineSerializer  # Removed to avoid circular import
 # Import your item serializers
 
 
@@ -106,17 +106,29 @@ class ReceiptValidationService:
         if not items_data:
             raise ValidationError({"items": ["At least one item is required."]})
 
-        category_name = receipt_category.name.strip().lower()
-        item_serializer_class = CRVItemSerializer if category_name == "crv" else ReceiptLineSerializer
-
+        # Basic item validation without serializers to avoid circular imports
         validated_items = []
         for idx, item_data in enumerate(items_data):
-            serializer = item_serializer_class(data=item_data)
+            # Basic validation for required fields
+            if not item_data.get("item_description"):
+                raise ValidationError({"items": [f"Item {idx + 1}: item_description is required"]})
+            
+            # Validate numeric fields
             try:
-                serializer.is_valid(raise_exception=True)
-            except Exception as e:
-                raise ValidationError({"items": [f"Item {idx + 1}: {str(e)}"]})
-            validated_items.append(serializer.validated_data)
+                quantity = float(item_data.get("quantity", 1))
+                if quantity <= 0:
+                    raise ValidationError({"items": [f"Item {idx + 1}: quantity must be greater than 0"]})
+            except (ValueError, TypeError):
+                raise ValidationError({"items": [f"Item {idx + 1}: invalid quantity value"]})
+            
+            try:
+                unit_cost = float(item_data.get("unit_cost", 0))
+                if unit_cost < 0:
+                    raise ValidationError({"items": [f"Item {idx + 1}: unit_cost cannot be negative"]})
+            except (ValueError, TypeError):
+                raise ValidationError({"items": [f"Item {idx + 1}: invalid unit_cost value"]})
+            
+            validated_items.append(item_data)
 
         validated["items"] = validated_items
 

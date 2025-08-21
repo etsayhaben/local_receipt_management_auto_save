@@ -1,28 +1,37 @@
 # core/serializers/draft_serializers.py
-
-from rest_framework import serializers
-
+# core/serializers/draft_serializers.py
 # Services
+# Services
+from rest_framework import serializers
 from core.services.receipt_validation import ReceiptValidationService
+from rest_framework import serializers
+from core.services.receipt_validation import ReceiptValidationService
+from core.serializers.ReceiptSerializer import ContactValidatorSerializer, WithholdingSerializer
 
 
 class DraftDataSerializer(serializers.Serializer):
     """
-    Lightweight serializer for draft autosave.
-    Validates structure like ReceiptSerializer, but without final rules.
-    Does NOT create objects or enforce business constraints.
+    Accepts the SAME JSON structure as ReceiptSerializer.
+    No draft_id, no data wrapper — just full receipt-like input.
     """
 
     # ========================
-    # CORE FIELDS (all optional for draft)
+    # NESTED SERIALIZERS
+    # ========================
+    issued_by_details = ContactValidatorSerializer()
+    issued_to_details = ContactValidatorSerializer()
+    withholding_details = WithholdingSerializer(required=False, allow_null=True)
+    machine_number = serializers.CharField(allow_blank=True, required=False)
+
+    # ========================
+    # CORE FIELDS
     # ========================
     receipt_number = serializers.CharField(
         max_length=50,
-        required=False,
-        allow_blank=False,
-        help_text="e.g., FS246, M751"
+        required=True,
+        allow_blank=False
     )
-    receipt_date = serializers.DateField(required=False)
+    receipt_date = serializers.DateField()
     calendar_type = serializers.ChoiceField(
         choices=["gregorian", "ethiopian"],
         required=False,
@@ -30,50 +39,24 @@ class DraftDataSerializer(serializers.Serializer):
     )
 
     # Classification IDs
-    receipt_category_id = serializers.IntegerField(required=False)
-    receipt_kind_id = serializers.IntegerField(required=False)
-    receipt_type_id = serializers.IntegerField(required=False)
-    receipt_name_id = serializers.IntegerField(required=False)
+    receipt_category_id = serializers.IntegerField()
+    receipt_kind_id = serializers.IntegerField()
+    receipt_type_id = serializers.IntegerField()
+    receipt_name_id = serializers.IntegerField()
 
-    # Parties
-    issued_by_details = serializers.DictField(required=False)
-    issued_to_details = serializers.DictField(required=False)
-
-    # Payment
-    is_withholding_applicable = serializers.BooleanField(required=False)
-    payment_method_type = serializers.CharField(
-        max_length=50,
-        required=False,
-        allow_blank=True
-    )
+    is_withholding_applicable = serializers.BooleanField(default=False)
+    payment_method_type = serializers.CharField(max_length=50)
     bank_name = serializers.CharField(
         max_length=100,
         required=False,
         allow_blank=True,
         allow_null=True
     )
-    machine_number = serializers.CharField(
-        max_length=50,
-        required=False,
-        allow_blank=True,
-        allow_null=True
-    )
 
     # Line Items
-    items = serializers.ListField(
-        child=serializers.DictField(),
-        required=False,
-        help_text="List of item dictionaries"
-    )
+    items = serializers.ListField(child=serializers.DictField())
 
-    # Misc
-    reason_of_receiving = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        allow_null=True
-    )
-
-    # Files (ignore in draft — not saved here)
+    # Files (ignored in draft — passed to service later)
     main_receipt_document = serializers.FileField(
         required=False,
         allow_null=True,
@@ -86,7 +69,7 @@ class DraftDataSerializer(serializers.Serializer):
     )
 
     # ========================
-    # VALIDATION
+    # VALIDATION (same as final, but no business rules)
     # ========================
     def validate(self, attrs):
         # ✅ Use shared validation logic
@@ -94,13 +77,9 @@ class DraftDataSerializer(serializers.Serializer):
             # Pass attrs directly — ReceiptValidationService handles structure
             validated_data = ReceiptValidationService.validate_receipt_data(attrs, recorded_by=None)
         except Exception as e:
-            # Convert any ValidationError to DRF format
             if isinstance(e, serializers.ValidationError):
                 raise e
-            elif isinstance(e, Exception):
-                # Wrap in ValidationError
-                raise serializers.ValidationError({"non_field_errors": str(e)})
             else:
-                raise serializers.ValidationError({"non_field_errors": "Validation failed."})
+                raise serializers.ValidationError({"non_field_errors": str(e)})
 
         return validated_data

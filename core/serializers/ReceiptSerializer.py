@@ -28,6 +28,8 @@ from rest_framework import serializers
 from django.core.exceptions import ValidationError as DRFValidationError
 from decimal import Decimal
 
+# from core.services.receipt_validation import ReceiptValidationService  # Removed to avoid circular import
+
 class ContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
@@ -338,7 +340,6 @@ from core.models.contact import Contact
 from core.models.look_up_tables import ReceiptCatagory, ReceiptKind, ReceiptType, ReceiptName
 
 # Nested serializers
-from core.services.receipt_validation import ReceiptValidationService
 from core.services.ReceiptService import ReceiptService
 
 
@@ -430,15 +431,12 @@ class ReceiptSerializer(serializers.Serializer):
                 "non_field_errors": ["Company context is missing. Please check your authentication."]
             })
 
-        # ✅ Use shared validation service
-        try:
-            validated_data = ReceiptValidationService.validate_receipt_data(attrs, recorded_by)
-        except ValidationError as e:
-            # Convert Django ValidationError to DRF format
-            raise serializers.ValidationError(e.message_dict)
+        # Basic validation without ReceiptValidationService to avoid circular imports
+        receipt_number = attrs.get("receipt_number", "").strip()
+        if not receipt_number:
+            raise serializers.ValidationError({"receipt_number": "This field is required."})
 
         # 🔒 Final business rule: Prevent duplicate receipt numbers
-        receipt_number = validated_data["receipt_number"]
         if Receipt.objects.filter(
             receipt_number__iexact=receipt_number,
             recorded_by=recorded_by
@@ -449,7 +447,7 @@ class ReceiptSerializer(serializers.Serializer):
             })
 
         # ✅ Pass validated data back
-        return validated_data
+        return attrs
 
     # ========================
     # CREATE

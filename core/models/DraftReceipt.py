@@ -1,11 +1,8 @@
 # core/models/draft.py
 
 from django.db import models
-from django.contrib.postgres.fields import JSONField
 import uuid
-
 from core.models.contact import Contact
-
 
 class DraftReceipt(models.Model):
     """
@@ -31,8 +28,8 @@ class DraftReceipt(models.Model):
 
     # What: links to the uploaded document
     uploaded_document_number = models.CharField(
-        max_length=100,
-        help_text="Original receipt number from upload (e.g., 246, FS246)"
+        max_length=90,
+        help_text="Original receipt number from upload (e.g., 246)"
     )
 
     # Optional: final receipt number being created (e.g., FS246, M751)
@@ -43,8 +40,8 @@ class DraftReceipt(models.Model):
         help_text="The receipt number the clerk is creating (e.g., FS246)"
     )
 
-    # Full draft state — all form data
-    data = JSONField(
+    # ✅ Use models.JSONField instead
+    data = models.JSONField(
         help_text="Full draft data: issued_by, items, totals, etc."
     )
 
@@ -71,21 +68,19 @@ class DraftReceipt(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # ✅ Critical: one draft per company + uploaded document
         constraints = [
             models.UniqueConstraint(
                 fields=['company', 'uploaded_document_number'],
                 name='unique_draft_per_company_per_upload'
             )
         ]
-        # ✅ Indexes for fast lookup
         indexes = [
             models.Index(fields=['company', 'uploaded_document_number']),
             models.Index(fields=['receipt_number']),
             models.Index(fields=['company', 'status']),
             models.Index(fields=['updated_at']),
         ]
-        db_table = 'draft_receipt'
+        db_table = 'receipt_drafts'
         verbose_name = "Draft Receipt"
         verbose_name_plural = "Draft Receipts"
 

@@ -32,7 +32,7 @@ from core.views.lookupviews import (
     ReceiptTypeListAPIView,
     ReceiptTypeCreateView,
 )
-from local_receipt_management_system.core.views.Draft_views import DraftsView
+from core.views.Draft_views import DraftsView
 
 urlpatterns = [
     path("create-receipt", CreateReceiptView.as_view(), name="create-receipt"),
